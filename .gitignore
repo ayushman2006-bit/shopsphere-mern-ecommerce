@@ -1,0 +1,43 @@
+# dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# environment
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# builds
+dist/
+build/
+coverage/
+
+# logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# uploaded user files (seed images are committed)
+backend/uploads/*
+!backend/uploads/seed/
+!backend/uploads/seed/**
+!backend/uploads/.gitkeep
+
+# test artifacts
+frontend/playwright-report/
+frontend/test-results/
+backend/tests/.tmp/
+
+# misc
+*.local
