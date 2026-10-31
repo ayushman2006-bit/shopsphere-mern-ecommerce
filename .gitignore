@@ -34,10 +34,5 @@ backend/uploads/*
 !backend/uploads/seed/**
 !backend/uploads/.gitkeep
 
-# test artifacts
-frontend/playwright-report/
-frontend/test-results/
-backend/tests/.tmp/
-
 # misc
 *.local

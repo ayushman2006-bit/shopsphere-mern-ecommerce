@@ -1,147 +1,90 @@
-import { useEffect, useState } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { ArrowRight, Eye, EyeOff, Lock, Mail, ShieldCheck, Sparkles } from 'lucide-react';
-import toast from 'react-hot-toast';
+import { useState } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { getApiError } from '../services/api';
 
-const Login = () => {
-  const { login, user } = useAuth();
+export default function Login() {
+  const { login } = useAuth();
   const navigate = useNavigate();
-  const location = useLocation();
-  const from = location.state?.from || '';
-  const [form, setForm] = useState({ email: '', password: '' });
-  const [showPassword, setShowPassword] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState('');
+  const [searchParams] = useSearchParams();
 
-  useEffect(() => {
-    if (user) navigate(from || (user.role === 'admin' ? '/admin' : '/'), { replace: true });
-  }, [user, from, navigate]);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  // If the user was sent here from the cart or admin page, send them back there.
+  const redirect = searchParams.get('redirect');
 
   const handleSubmit = async (event) => {
     event.preventDefault();
     setError('');
-    setSubmitting(true);
+    setLoading(true);
+
     try {
-      const data = await login(form);
-      toast.success(`Welcome back, ${data.user.name.split(' ')[0]}!`);
-      navigate(from || (data.user.role === 'admin' ? '/admin' : '/'), { replace: true });
-    } catch (err) {
-      const message = getApiError(err, 'Could not log in. Please check your details.');
-      setError(message);
-      toast.error(message);
+      const loggedInUser = await login(email, password);
+      const destination = redirect || (loggedInUser.role === 'admin' ? '/admin' : '/');
+      navigate(destination);
+    } catch (requestError) {
+      setError(requestError.response?.data?.message || 'Login failed. Please try again.');
     } finally {
-      setSubmitting(false);
+      setLoading(false);
     }
   };
 
-  const fillDemo = (role) => {
-    setForm(
-      role === 'admin'
-        ? { email: 'admin@shopsphere.com', password: 'Admin@12345' }
-        : { email: 'customer@shopsphere.com', password: 'Customer@123' }
-    );
-    setError('');
-  };
-
   return (
-    <div>
-      <div className="mb-6">
-        <span className="badge bg-brand-50 text-brand-700"><Sparkles size={12} /> Welcome back</span>
-        <h1 className="mt-3 text-3xl font-extrabold tracking-tight text-ink-900">Log in to ShopSphere</h1>
-        <p className="mt-2 text-sm leading-6 text-ink-500">Pick up where you left off — your cart, wishlist and orders are waiting.</p>
-      </div>
+    <div className="auth-page">
+      <div className="container">
+        <form className="form-card" onSubmit={handleSubmit}>
+          <h1>Welcome back</h1>
+          <p className="form-subtitle">
+            Log in to place orders and view your order history.
+          </p>
 
-      {error && (
-        <div className="mb-4 rounded-xl border border-rose-100 bg-rose-50 px-4 py-3 text-xs font-semibold text-rose-700">
-          {error}
-        </div>
-      )}
+          {error && <div className="alert alert-error">{error}</div>}
 
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <label>
-          <span className="label">Email address</span>
-          <div className="relative">
-            <Mail size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-400" />
+          <div className="form-group">
+            <label htmlFor="email">Email</label>
             <input
+              id="email"
               type="email"
-              value={form.email}
-              onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))}
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
               placeholder="you@example.com"
-              className="input pl-10"
               autoComplete="email"
               required
             />
           </div>
-        </label>
 
-        <label>
-          <span className="label">Password</span>
-          <div className="relative">
-            <Lock size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-400" />
+          <div className="form-group">
+            <label htmlFor="password">Password</label>
             <input
-              type={showPassword ? 'text' : 'password'}
-              value={form.password}
-              onChange={(event) => setForm((current) => ({ ...current, password: event.target.value }))}
-              placeholder="Your password"
-              className="input pl-10 pr-11"
+              id="password"
+              type="password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              placeholder="Enter your password"
               autoComplete="current-password"
               required
             />
-            <button
-              type="button"
-              onClick={() => setShowPassword((visible) => !visible)}
-              aria-label={showPassword ? 'Hide password' : 'Show password'}
-              className="absolute right-3 top-1/2 -translate-y-1/2 rounded p-1 text-ink-400 transition hover:text-ink-700"
-            >
-              {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-            </button>
           </div>
-        </label>
 
-        <button type="submit" disabled={submitting} className="btn-primary w-full py-3">
-          {submitting ? 'Logging in…' : 'Log in'} <ArrowRight size={16} />
-        </button>
-      </form>
+          <button type="submit" className="btn btn-primary btn-block" disabled={loading}>
+            {loading ? 'Logging in...' : 'Login'}
+          </button>
 
-      <div className="mt-5 flex items-center justify-between gap-3 text-xs">
-        <Link to="/register" className="font-bold text-brand-700 transition hover:text-brand-900">Create an account</Link>
-        <a href="mailto:support@shopsphere.dev" className="font-medium text-ink-400 transition hover:text-ink-700">Need help?</a>
-      </div>
-
-      {import.meta.env.DEV && (
-        <div className="mt-7 rounded-2xl border border-dashed border-slate-200 bg-white p-4">
-          <p className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-ink-400">
-            <ShieldCheck size={12} className="text-emerald-500" /> Development demo accounts
+          <p className="form-footer">
+            New here? <Link to="/register">Create an account</Link>
           </p>
-          <div className="mt-2 grid gap-2 sm:grid-cols-2">
-            <button
-              type="button"
-              onClick={() => fillDemo('customer')}
-              className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2 text-left transition hover:border-brand-200 hover:bg-brand-50"
-            >
-              <span className="block text-[11px] font-bold text-ink-800">Customer</span>
-              <span className="block truncate text-[10px] text-ink-400">customer@shopsphere.com</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => fillDemo('admin')}
-              className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2 text-left transition hover:border-brand-200 hover:bg-brand-50"
-            >
-              <span className="block text-[11px] font-bold text-ink-800">Administrator</span>
-              <span className="block truncate text-[10px] text-ink-400">admin@shopsphere.com</span>
-            </button>
-          </div>
-          <p className="mt-2 text-[10px] leading-4 text-ink-400">These seeded accounts only exist after running the seed script. Click to fill the form.</p>
-        </div>
-      )}
 
-      <p className="mt-6 text-center text-[11px] leading-5 text-ink-400">
-        By continuing you agree to our terms of service and privacy policy.
-      </p>
+          <div className="demo-box">
+            <strong>Demo accounts</strong>
+            <br />
+            Customer: customer@shopsphere.com / Customer@123
+            <br />
+            Admin: admin@shopsphere.com / Admin@12345
+          </div>
+        </form>
+      </div>
     </div>
   );
-};
-
-export default Login;
+}

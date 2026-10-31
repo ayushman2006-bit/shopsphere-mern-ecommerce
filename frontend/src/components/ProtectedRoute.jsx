@@ -1,16 +1,17 @@
-import { Navigate, Outlet, useLocation } from 'react-router-dom';
+import { Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import LoadingSpinner from './LoadingSpinner';
 
-const ProtectedRoute = ({ children }) => {
+// Wrap a page with this component to require a logged-in user.
+export default function ProtectedRoute({ children }) {
   const { user, loading } = useAuth();
-  const location = useLocation();
 
-  if (loading) return <LoadingSpinner fullPage label="Checking your session…" />;
-  if (!user) {
-    return <Navigate to="/login" replace state={{ from: `${location.pathname}${location.search}` }} />;
+  if (loading) {
+    return <div className="page-loading">Loading...</div>;
   }
-  return children || <Outlet />;
-};
 
-export default ProtectedRoute;
+  if (!user) {
+    return <Navigate to="/login?redirect=/orders" replace />;
+  }
+
+  return children;
+}

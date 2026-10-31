@@ -1,45 +1,22 @@
 const mongoose = require('mongoose');
 
-let memoryServer = null;
-
+// Connect to MongoDB using the URI from the .env file.
+// If no URI is given, we fall back to a local database called "shopsphere".
 const connectDB = async () => {
-  let uri = process.env.MONGODB_URI;
+  const uri = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/shopsphere';
 
-  if (process.env.USE_MEMORY_DB === 'true') {
-    // Optional demo/CI mode: runs a real MongoDB server in memory.
-    // Data disappears when the process stops, so it is not for production.
-    const { MongoMemoryServer } = require('mongodb-memory-server');
-    memoryServer = await MongoMemoryServer.create();
-    uri = memoryServer.getUri('shopsphere');
-    console.log('Using in-memory MongoDB (demo mode)');
+  try {
+    await mongoose.connect(uri);
+    console.log(`MongoDB connected: ${mongoose.connection.name}`);
+  } catch (error) {
+    console.error('MongoDB connection failed:', error.message);
+    process.exit(1);
   }
-
-  if (!uri) {
-    throw new Error('MONGODB_URI is not configured. Copy backend/.env.example to backend/.env.');
-  }
-
-  mongoose.set('strictQuery', true);
-
-  const conn = await mongoose.connect(uri, {
-    serverSelectionTimeoutMS: 15000,
-    maxPoolSize: 10,
-  });
-
-  console.log(`MongoDB connected: ${conn.connection.host}/${conn.connection.name}`);
-
-  mongoose.connection.on('error', (err) => {
-    console.error('MongoDB connection error:', err.message);
-  });
-
-  return conn;
 };
 
+// Used by the seed script after it has finished inserting data.
 const disconnectDB = async () => {
   await mongoose.disconnect();
-  if (memoryServer) {
-    await memoryServer.stop();
-    memoryServer = null;
-  }
 };
 
 module.exports = { connectDB, disconnectDB };

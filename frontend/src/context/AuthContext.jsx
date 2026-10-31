@@ -1,138 +1,77 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import toast from 'react-hot-toast';
-import { authService } from '../services/auth.service';
-import { getApiError, TOKEN_KEY } from '../services/api';
+import { createContext, useContext, useEffect, useState } from 'react';
+import api from '../api';
 
-const AuthContext = createContext(null);
+// AuthContext keeps the logged-in user and the JWT token.
+const AuthContext = createContext();
 
-export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
-  const [token, setToken] = useState(() => localStorage.getItem(TOKEN_KEY));
-  const [loading, setLoading] = useState(Boolean(localStorage.getItem(TOKEN_KEY)));
+// A small custom hook so pages can write: const { user } = useAuth();
+export const useAuth = () => useContext(AuthContext);
 
-  const refreshUser = useCallback(async () => {
-    if (!localStorage.getItem(TOKEN_KEY)) {
-      setUser(null);
-      return null;
-    }
-    const data = await authService.me();
-    setUser(data.user);
-    return data.user;
-  }, []);
+export function AuthProvider({ children }) {
+  const [user, setUser] = useState(() => {
+    const savedUser = localStorage.getItem('user');
+    return savedUser ? JSON.parse(savedUser) : null;
+  });
+  const [loading, setLoading] = useState(true);
 
+  // When the page is refreshed, ask the backend who the saved token belongs to.
   useEffect(() => {
-    let active = true;
+    const token = localStorage.getItem('token');
+
     if (!token) {
-      setUser(null);
       setLoading(false);
-      return undefined;
+      return;
     }
 
-    setLoading(true);
-    authService
-      .me()
-      .then((data) => {
-        if (active) setUser(data.user);
+    api
+      .get('/auth/me')
+      .then((response) => {
+        setUser(response.data);
+        localStorage.setItem('user', JSON.stringify(response.data));
       })
       .catch(() => {
-        if (active) {
-          localStorage.removeItem(TOKEN_KEY);
-          setToken(null);
-          setUser(null);
-        }
+        // The token is invalid or expired, so clear the session.
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        setUser(null);
       })
-      .finally(() => {
-        if (active) setLoading(false);
-      });
-
-    return () => {
-      active = false;
-    };
-  }, [token]);
-
-  useEffect(() => {
-    const handleUnauthorized = () => {
-      setToken(null);
-      setUser(null);
-      toast.error('Your session has expired. Please log in again.');
-    };
-    window.addEventListener('shopsphere:unauthorized', handleUnauthorized);
-    return () => window.removeEventListener('shopsphere:unauthorized', handleUnauthorized);
+      .finally(() => setLoading(false));
   }, []);
 
-  const login = useCallback(async (credentials) => {
-    const data = await authService.login(credentials);
-    localStorage.setItem(TOKEN_KEY, data.token);
-    setToken(data.token);
-    setUser(data.user);
-    return data;
-  }, []);
+  // Send login details to the backend and save the returned token.
+  const login = async (email, password) => {
+    const response = await api.post('/auth/login', { email, password });
+    const { token, user: loggedInUser } = response.data;
 
-  const register = useCallback(async (payload) => {
-    const data = await authService.register(payload);
-    localStorage.setItem(TOKEN_KEY, data.token);
-    setToken(data.token);
-    setUser(data.user);
-    return data;
-  }, []);
+    localStorage.setItem('token', token);
+    localStorage.setItem('user', JSON.stringify(loggedInUser));
+    setUser(loggedInUser);
 
-  const logout = useCallback(async () => {
-    try {
-      await authService.logout();
-    } catch {
-      // Stateless JWT - clearing the client token is sufficient.
-    } finally {
-      localStorage.removeItem(TOKEN_KEY);
-      setToken(null);
-      setUser(null);
-    }
-  }, []);
+    return loggedInUser;
+  };
 
-  const updateProfile = useCallback(async (payload) => {
-    try {
-      const data = await authService.updateProfile(payload);
-      setUser(data.user);
-      return data.user;
-    } catch (error) {
-      throw new Error(getApiError(error, 'Could not update your profile'));
-    }
-  }, []);
+  // Create an account. The backend also logs the new user in.
+  const register = async (name, email, password) => {
+    const response = await api.post('/auth/register', { name, email, password });
+    const { token, user: newUser } = response.data;
 
-  const changePassword = useCallback(async (payload) => {
-    try {
-      const data = await authService.changePassword(payload);
-      if (data.token) {
-        localStorage.setItem(TOKEN_KEY, data.token);
-        setToken(data.token);
-      }
-      return data;
-    } catch (error) {
-      throw new Error(getApiError(error, 'Could not change your password'));
-    }
-  }, []);
+    localStorage.setItem('token', token);
+    localStorage.setItem('user', JSON.stringify(newUser));
+    setUser(newUser);
 
-  const value = useMemo(
-    () => ({
-      user,
-      token,
-      loading,
-      isAuthenticated: Boolean(user),
-      isAdmin: user?.role === 'admin',
-      login,
-      register,
-      logout,
-      updateProfile,
-      changePassword,
-      refreshUser,
-    }),
-    [user, token, loading, login, register, logout, updateProfile, changePassword, refreshUser]
+    return newUser;
+  };
+
+  // Logging out only happens in the browser because JWTs are stateless.
+  const logout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    setUser(null);
+  };
+
+  return (
+    <AuthContext.Provider value={{ user, loading, login, register, logout }}>
+      {children}
+    </AuthContext.Provider>
   );
-
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
-};
-
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (!context) throw new Error('useAuth must be used inside AuthProvider');
-  return context;
-};
+}
