@@ -313,3 +313,6 @@ This is a learning project, not a commercial store:
 - No automated test files are included; the app was verified end-to-end during development
 
 For a complete explanation of the architecture, database, routes and code flow, read **[PROJECT_EXPLANATION.md](./PROJECT_EXPLANATION.md)**.
+
+Admin login :
+Admin: admin@shopsphere.com / Admin@12345
