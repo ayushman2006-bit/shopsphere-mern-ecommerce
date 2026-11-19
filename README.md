@@ -6,6 +6,24 @@ The code is intentionally small and readable. There are only **three database co
 
 ---
 
+## Live Demo
+
+The project is deployed on Vercel with the database hosted on MongoDB Atlas.
+
+| | URL |
+|---|---|
+| **Website** | **https://shopsphere-mern-app.vercel.app** |
+| API | https://shopsphere-api-beta.vercel.app/api |
+
+| Role | Email | Password |
+|---|---|---|
+| Admin | `admin@shopsphere.com` | `Admin@12345` |
+| Customer | `customer@shopsphere.com` | `Customer@123` |
+
+The customer account already contains sample orders, so the "My Orders" page and the admin dashboard both have data to show.
+
+---
+
 ## Tech Stack
 
 | Layer | Technology |
@@ -68,12 +86,13 @@ shopsphere/
 │   │   └── start-memory-db.js     # optional MongoDB for machines without MongoDB
 │   ├── uploads/seed/              # 12 demo product images
 │   ├── seed.js                    # inserts demo users, products and one order
-│   ├── server.js                  # Express entry point
+│   ├── app.js                     # Express app (middleware, routes, errors)
+│   ├── server.js                  # Express entry point / Vercel function
 │   ├── .env.example
 │   └── package.json
 │
 ├── frontend/
-│   ├── public/                    # favicon + placeholder image
+│   ├── public/                    # favicon, placeholder + seed product images
 │   ├── src/
 │   │   ├── components/
 │   │   │   ├── Navbar.jsx
@@ -102,6 +121,7 @@ shopsphere/
 │   │   └── main.jsx               # React entry point
 │   ├── index.html
 │   ├── vite.config.js             # /api proxy to Express
+│   ├── vercel.json                # SPA rewrite for Vercel
 │   ├── .env.example
 │   └── package.json
 │
@@ -198,6 +218,53 @@ The customer account already has one sample order. You can also register a new a
 
 ---
 
+## Deploying to Vercel
+
+The app runs as **two Vercel projects** that share one GitHub repository:
+
+| Vercel project | Root directory | Purpose |
+|---|---|---|
+| `shopsphere-api` | `backend/` | Express API as a serverless function |
+| `shopsphere` | `frontend/` | React/Vite static site |
+
+### How the code supports this
+
+- `backend/app.js` exports the Express app (middleware, routes and error handler).
+- `backend/server.js` also exports the app, but only calls `app.listen()` when `VERCEL` is not set, so local development is unchanged.
+- `backend/config/db.js` caches the Mongoose connection in a global variable so serverless invocations reuse it.
+- `frontend/vercel.json` rewrites every path to `index.html` so React Router works on refresh.
+- Seed product images live in `frontend/public/uploads/seed/`, so Vercel's CDN serves them at `/uploads/seed/*.jpg`.
+- The API allows CORS requests from `CLIENT_URL` and from any `*.vercel.app` origin.
+
+### Environment variables
+
+Backend project (`shopsphere-api`), Production:
+
+```text
+MONGODB_URI   mongodb+srv://<user>:<password>@<cluster>/shopsphere?retryWrites=true&w=majority
+JWT_SECRET    <a long random string>
+NODE_ENV      production
+```
+
+Frontend project (`shopsphere`), Production:
+
+```text
+VITE_API_URL  https://shopsphere-api-beta.vercel.app/api
+```
+
+### Deploying again
+
+```bash
+npx vercel deploy --prod --cwd backend
+npx vercel deploy --prod --cwd frontend
+```
+
+Pushes to the `main` branch also trigger automatic deployments because both projects are connected to the GitHub repository.
+
+> MongoDB Atlas must allow connections from `0.0.0.0/0`, because Vercel serverless functions use changing IP addresses.
+
+---
+
 ## Available Scripts
 
 ### Backend (`cd backend`)
@@ -232,6 +299,8 @@ The customer account already has one sample order. You can also register a new a
 ## API Overview
 
 Base URL: `http://localhost:5000/api`
+
+The deployed API uses the same routes with the base URL `https://shopsphere-api-beta.vercel.app/api`.
 
 | Method | Endpoint | Access | Purpose |
 |---|---|---|---|
